@@ -15,12 +15,12 @@ REQUIREMENTS = [
 CLASSIFIERS = [
     'Programming Language :: Python :: 3',
     'License :: OSI Approved :: MIT License',
-    'Operating System :: OS Independent',
+    'Operating System :: Windows',
 ]
 
 setup(
     name='tradocs',
-    version='1.1.0',
+    version='1.1.1',
     author='Eber Rodrigues',
     author_email='eberjoe@gmail.com',
     description='DocFX localization',
