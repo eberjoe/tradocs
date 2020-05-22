@@ -12,7 +12,6 @@ from colorama import init
 from pathlib import Path
 
 targetPaths = []
-workTree = []
 stats = []
 cont = ''
 greenFlag = False
@@ -42,6 +41,10 @@ targetLangs = []
 # Diretório fonte
 
 sourceDir = ''
+
+# Configurações
+
+configs = {}
 
 # Preservação da sintaxe Markdown DocFX
 
@@ -184,37 +187,7 @@ def PrLightPurple(skk):
 
 #--------------------------------
 
-@click.group()
-def root():
-    """Traslation of DocFX source code"""
-    global apiTradKey
-    global sourceLang
-    global targetLangs
-    global workTree
-    global sourceDir
-    init()
-
-    try:
-        with open(os.path.expanduser('~') + '/' + 'tradocs.config.json', 'r') as file:
-            configs = json.load(file)
-        apiTradKey = configs['TRANSLATOR_KEY']
-        sourceLang = configs['SOURCE']
-        targetLangs = configs['TARGET']
-    except:
-        print(" Hey firstcomer, welcome to Tradocs!\n Please set up a few things before proceeding...")
-        apiTradKey = input(' Please enter your Yandex.Translate API key: ')
-        sourceLang = input(' Enter the ISO 639-1 (two-letter code) identifier for the source language: ').lower()
-        targetLangs = input(' Enter the ISO 639-1 identifiers for the target languages, separated by space: ').lower().split(' ')
-        configs = {
-            'TRANSLATOR_KEY': apiTradKey,
-            'SOURCE': sourceLang,
-            'TARGET': targetLangs
-        }
-        with open(os.path.expanduser('~') + '/' + 'tradocs.config.json', 'w+') as file:
-            json.dump(configs, file)
-    
-    sourceDir = '_'.join(sourceLang.split('-')).lower()
-
+def RepoCheck():
     if sourceDir not in os.listdir():
         PrRed('\nThe directory "' + sourceDir + '" for source files has not been found!')
         exit()
@@ -239,11 +212,57 @@ def root():
 
     allModified = modifiedStaged + modifiedUnstaged
     untrackedSrc = [n for n in repo.untracked_files if n.split('/')[1:] in os.listdir(sourceDir)]
-    workTree = [n.a_blob.path for n in allModified if n.a_blob.path.split('/')[0] == '_'.join(sourceLang.split('-')).lower()] + untrackedSrc
+    return [n.a_blob.path for n in allModified if n.a_blob.path.split('/')[0] == '_'.join(sourceLang.split('-')).lower()] + untrackedSrc
+
+#--------------------------------
+
+@click.group()
+def root():
+    """Traslation of DocFX source code"""
+    global apiTradKey
+    global sourceLang
+    global targetLangs
+    global sourceDir
+    global configs
+    init()
+    try:
+        with open(os.path.expanduser('~') + '/' + 'tradocs.config.json', 'r') as file:
+            configs = json.load(file)
+        apiTradKey = configs['TRANSLATOR_KEY']
+        sourceLang = configs['SOURCE']
+        targetLangs = configs['TARGET']
+    except:
+        print(" Hey firstcomer, welcome to Tradocs!\n Please set up a few things before proceeding...")
+        apiTradKey = input(' Please enter your Yandex.Translate API key: ')
+        sourceLang = input(' Enter the ISO 639-1 (two-letter code) identifier for the source language: ').lower()
+        targetLangs = input(' Enter the ISO 639-1 identifiers for the target languages, separated by space: ').lower().split(' ')
+        configs = {
+            'TRANSLATOR_KEY': apiTradKey,
+            'SOURCE': sourceLang,
+            'TARGET': targetLangs
+        }
+        with open(os.path.expanduser('~') + '/' + 'tradocs.config.json', 'w+') as file:
+            json.dump(configs, file)
+    sourceDir = '_'.join(sourceLang.split('-')).lower()
 
 @root.command()
-def config():
+@click.option('-k', '--api-key', type=str)
+@click.option('-s', '--source', type=str)
+@click.option('-t', '--target', type=str)
+def config(api_key, source, target):
+    global configs
     """Show and set configuration"""
+    if not (api_key or source or target):
+        print(' Source language:\t' + configs['SOURCE'])
+        print(' Target languages:\t' + ' '.join(configs['TARGET']))
+        print(' Yandex API key:\t' + configs['TRANSLATOR_KEY'])
+        exit()
+    if api_key: configs['TRANSLATOR_KEY'] = api_key
+    if source: configs['SOURCE'] = source
+    if target: configs['TARGET'] = target.split(' ')
+    with open(os.path.expanduser('~') + '/' + 'tradocs.config.json', 'w+') as file:
+        json.dump(configs, file)
+    re.purge
     exit()
 
 @root.command()
@@ -252,6 +271,7 @@ def diff():
     global reqs
     global chars
     global cont
+    workTree = RepoCheck()
     if workTree:
         PrYellow('\n The following files will be added or overwritten in target languages:')
         for doc in workTree:
@@ -295,13 +315,13 @@ def all():
     global greenFlag
     global reqs
     global chars
+    RepoCheck()
     while not processed:
         if greenFlag:
             for item in Path().iterdir():
                 if item.name != sourceDir and item.name in list(map(lambda x: '_'.join(x.split('-')).lower(), targetLangs)) and item.is_dir():
                     shutil.rmtree(item.name)
             processed = True
-
         if greenFlag:
             for path in targetPaths:
                 os.mkdir(path)
@@ -358,7 +378,6 @@ def all():
                     ProcessFiles(sourceDir + '/' + entry.name)
                 else:
                     stats.append(FileStats(sourceDir + '/' + entry.name))
-        
         if not greenFlag:
             fls = list(filter(lambda x: x is not None, stats))
             nFls = len(fls)*len(targetLangs)
@@ -378,7 +397,6 @@ def all():
                 greenFlag = True
             else:
                 break
-
     if greenFlag:
         PrGreen('\n Completed successfully!')
     else:

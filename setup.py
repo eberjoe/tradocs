@@ -20,7 +20,7 @@ CLASSIFIERS = [
 
 setup(
     name='tradocs',
-    version='0.0.47',
+    version='0.0.62',
     author='Eber Rodrigues',
     author_email='eberjoe@gmail.com',
     description='DocFX localization',
