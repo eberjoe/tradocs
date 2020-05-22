@@ -70,21 +70,20 @@ def ProcessFiles(sourceFile):
         file = codecs.open(sourceFile, encoding = 'utf-8', mode = 'r')
         sourceContent = (file.read())
         file.close()
-        PrLightPurple('\n ' + sourceFile)
         for i in range (len(targetLangs)):
+            PrGreen('Traslating "' + sourceFile + '" from "' + sourceLang + '" to "' + targetLangs[i] + '"')
             langCombo = sourceLang + '-' + targetLangs[i]
             targetContent = ''
             if fileName[-3:] == 'yml':
-                PrGreen('\n Traslating Yaml from ' + sourceLang + ' to ' + targetLangs[i])
                 slicedApple = list(filter(lambda x: x != '' and x is not None, ymlRegex.split(sourceContent)))
-                for piece in slicedApple:
-                    if not ymlRegex.fullmatch(piece):
-                        targetContent += piece
-                    else:
-                        localized = 'name: ' + Translate(piece[6:], langCombo).title()
-                        targetContent += localized
+                with click.progressbar(slicedApple) as bar:
+                    for piece in bar:
+                        if not ymlRegex.fullmatch(piece):
+                            targetContent += piece
+                        else:
+                            localized = 'name: ' + Translate(piece[6:], langCombo).title()
+                            targetContent += localized
             else:
-                PrGreen('\n Traslating Markdown from ' + sourceLang + ' to ' + targetLangs[i])
                 if sourceLang[:2] == 'en':
                     slicedUi = re.split(r'(\{\{.*?\}\} [a-zA-Z]+)', sourceContent)
                     for j in range(len(slicedUi)):
@@ -102,24 +101,24 @@ def ProcessFiles(sourceFile):
                             slicedBold[j] = ' '.join(re.split(r'(?<=\*\*) ', slicedBold[j])[::-1])
                     sourceContent = ''.join(slicedBold)
                 slicedApple = list(filter(lambda x: x != '' and x is not None, mdRegex.split(sourceContent)))
-                for piece in slicedApple:
-                    if mdRegex.fullmatch(piece):
-                        if re.fullmatch(r'\]\(#.+\)', piece):
-                            anchor = Translate(' '.join(piece[3:-1].split('-')), langCombo)
-                            targetContent += '](#' + '-'.join(anchor.split(' ')).lower() + ')'
+                with click.progressbar(slicedApple) as bar:
+                    for piece in bar:
+                        if mdRegex.fullmatch(piece):
+                            if re.fullmatch(r'\]\(#.+\)', piece):
+                                anchor = Translate(' '.join(piece[3:-1].split('-')), langCombo)
+                                targetContent += '](#' + '-'.join(anchor.split(' ')).lower() + ')'
+                            else:
+                                targetContent += piece
                         else:
-                            targetContent += piece
-                    else:
-                        localized = Translate(piece, langCombo)
-                        if type(localized) is list:
-                            localized = localized[0]
-                        targetContent += localized
+                            localized = Translate(piece, langCombo)
+                            if type(localized) is list:
+                                localized = localized[0]
+                            targetContent += localized
             file = codecs.open(targetPaths[i] + '/' + '/'.join(sourceFile.split('/')[1:]), encoding = 'utf-8', mode = 'w+')
             file.write(targetContent)
             file.close()
         return
-
-    PrLightPurple('Copying ' + sourceFile)
+    PrLightPurple('Copying "' + sourceFile + '"')
     for i in range (len(targetLangs)):
         shutil.copy(sourceFile, targetPaths[i] + '/' + '/'.join(sourceFile.split('/')[1:]))
 
@@ -157,9 +156,8 @@ def Translate(text, langCombo):
             'text': text
             }
     )
-    print(resp.status_code)
     if resp.status_code != 200:
-        PrRed('Translation failed!')
+        PrRed('Request failed!')
         exit()
     translation = resp.json()['text'][0]
     try:
@@ -168,7 +166,6 @@ def Translate(text, langCombo):
         firstLetterTranslated = ''
     if firstLetter.islower():
         translation = re.sub(r'\w', firstLetterTranslated.lower(), translation, count = 1)
-    print(translation + '\n')
     return translation
 
 #--------------------------------
@@ -211,7 +208,7 @@ def RepoCheck():
         exit()
 
     allModified = modifiedStaged + modifiedUnstaged
-    untrackedSrc = [n for n in repo.untracked_files if n.split('/')[1:] in os.listdir(sourceDir)]
+    untrackedSrc = [n for n in repo.untracked_files if n.split('/')[0] == sourceDir]
     return [n.a_blob.path for n in allModified if n.a_blob.path.split('/')[0] == '_'.join(sourceLang.split('-')).lower()] + untrackedSrc
 
 #--------------------------------
@@ -284,7 +281,7 @@ def diff():
         for i in range(len(fls)):
             reqs += fls[i][0]
             chars += fls[i][1]
-        estimatedT = int(reqs*1.1)
+        estimatedT = int(reqs * 1.1)
         print('\n Target languages:\t\t\t' + ', '.join(targetLangs))
         print(' Total of calls to translation service:\t' + str(reqs))
         print(' Total of characters for translation:\t' + str(chars * len(targetLangs)))
@@ -386,7 +383,7 @@ def all():
             for i in range(len(fls)):
                 reqs += fls[i][0]
                 chars += fls[i][1]
-            estimatedT = int(reqs*1.1)
+            estimatedT = int(reqs * 1.1)
             print(' Total of source language characters:\t' + str(chars))
             print(' Total of files to be generated:\t' + str(nFls))
             print(' Total of calls to translation service:\t' + str(reqs))
