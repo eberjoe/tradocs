@@ -281,7 +281,7 @@ def diff():
         for i in range(len(fls)):
             reqs += fls[i][0]
             chars += fls[i][1]
-        estimatedT = int(reqs * 1.1)
+        estimatedT = int(reqs * 1.3)
         print('\n Target languages:\t\t\t' + ', '.join(targetLangs))
         print(' Total of calls to translation service:\t' + str(reqs))
         print(' Total of characters for translation:\t' + str(chars * len(targetLangs)))
@@ -383,7 +383,7 @@ def all():
             for i in range(len(fls)):
                 reqs += fls[i][0]
                 chars += fls[i][1]
-            estimatedT = int(reqs * 1.1)
+            estimatedT = int(reqs * 1.3)
             print(' Total of source language characters:\t' + str(chars))
             print(' Total of files to be generated:\t' + str(nFls))
             print(' Total of calls to translation service:\t' + str(reqs))
