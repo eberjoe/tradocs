@@ -73,6 +73,8 @@ def ProcessFiles(sourceFile):
                             targetContent += localized
             else:
                 if sourceLang[:2] == 'en':
+                     # Ao traduzir do inglês, os padrões a seguir são usados para
+                     # a troca de posição entre substantivo e adjetivo, quando segmentados
                     slicedUi = re.split(r'(\{\{.*?\}\} [a-zA-Z]+)', sourceContent)
                     for j in range(len(slicedUi)):
                         if re.fullmatch(r'\{\{.*?\}\} [a-zA-Z]+', slicedUi[j]) and re.search(r'(?<=\}\} ).+', slicedUi[j]).group().casefold() in enUi:
@@ -92,6 +94,8 @@ def ProcessFiles(sourceFile):
                 with click.progressbar(slicedApple) as bar:
                     for piece in bar:
                         if mdRegex.fullmatch(piece):
+                            # Este padrão identifica links internos nas páginas, pois
+                            # estes devem ser traduzidos com separação por hífen e em caixa baixa
                             if re.fullmatch(r'\]\(#.+\)', piece):
                                 anchor = Translate(' '.join(piece[3:-1].split('-')), langCombo)
                                 if anchor == None:
