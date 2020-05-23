@@ -5,9 +5,7 @@ with open('README.md', 'r') as fh:
 
 REQUIREMENTS = [
     'Click',
-    'configparser',
-    'translate-toolkit',
-    'lxml',
+    'gitpython',
     'requests',
     'colorama',
 ]
@@ -20,13 +18,13 @@ CLASSIFIERS = [
 
 setup(
     name='tradocs',
-    version='1.1.1',
+    version='1.5.0',
     author='Eber Rodrigues',
     author_email='eberjoe@gmail.com',
     description='DocFX localization',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/eberjoe/ui-docs-zanata-md',
+    url='https://github.com/eberjoe/tradocs',
     license = 'MIT',
     packages = find_packages(),
     entry_points = {

@@ -18,6 +18,7 @@ greenFlag = False
 processed = False
 reqs = 0
 chars = 0
+
 enUi = ['button', 'checkbox', 'field', 'column', 'area', 'box', 'role', 'user', 'line', 'table', 'mode', 'module', 'menu', 'event',
         'RFx', 'search', 'page', 'tab', 'panel', 'option', 'dialog', 'status', 'tag', 'symbol', 'sign', 'label', 'scenario', 'link',
         'auction', 'events', 'checkboxes', 'columns', 'lines', 'answers', 'answer', 'responses', 'response', 'buttons', 'fields',
@@ -25,28 +26,13 @@ enUi = ['button', 'checkbox', 'field', 'column', 'area', 'box', 'role', 'user', 
         'modal windows', 'dialog window', 'dialog windows', 'homepage', 'folder', 'folders', 'file', 'files', 'project', 'projects',
         'image', 'images']
 
-# Configuração da API de tradução
-
 urlTrad = 'https://translate.yandex.net/api/v1.5/tr.json/translate'
 apiTradKey = ''
-
-# Idioma fonte
-
 sourceLang = ''
-
-# Idiomas traduzidos
-
 targetLangs = []
-
-# Diretório fonte
-
 sourceDir = ''
-
-# Configurações
-
+haltedTranslation=[]
 configs = {}
-
-# Preservação da sintaxe Markdown DocFX
 
 mdRegex = re.compile(r'''(\]\(.+?\)[\W ]?)|          # referência de imagem ou link
                          (uid:\s?[\w.]+)|            # âncora de link no cabeçalho
@@ -57,8 +43,6 @@ mdRegex = re.compile(r'''(\]\(.+?\)[\W ]?)|          # referência de imagem ou 
                          ([-=|_:]{2,})|              # linha horizontal e divisor de cabeçalho de tabela
                          (\s*?\d\.\s)|               # numeração em lista numerada
                          (\s?[\[!#*|>\r\n\t]+?\s*)   # outros elementos de Markdown DocFX''', re.VERBOSE | re.DOTALL)
-
-# Preservação da sintaxe Yaml DocFX
 
 ymlRegex = re.compile(r'(name: [ \w\'\-]+)')         # traduz texto entre 'name: ' e quebra de linha
 
@@ -71,9 +55,10 @@ def ProcessFiles(sourceFile):
         sourceContent = (file.read())
         file.close()
         for i in range (len(targetLangs)):
-            PrGreen('Traslating "' + sourceFile + '" from "' + sourceLang + '" to "' + targetLangs[i] + '"')
+            PrLightPurple('Traslating "' + sourceFile + '" from "' + sourceLang + '" to "' + targetLangs[i] + '"')
             langCombo = sourceLang + '-' + targetLangs[i]
             targetContent = ''
+            word = ''
             if fileName[-3:] == 'yml':
                 slicedApple = list(filter(lambda x: x != '' and x is not None, ymlRegex.split(sourceContent)))
                 with click.progressbar(slicedApple) as bar:
@@ -81,7 +66,10 @@ def ProcessFiles(sourceFile):
                         if not ymlRegex.fullmatch(piece):
                             targetContent += piece
                         else:
-                            localized = 'name: ' + Translate(piece[6:], langCombo).title()
+                            word = Translate(piece[6:], langCombo)
+                            if word == None:
+                                break
+                            localized = 'name: ' + word.title()
                             targetContent += localized
             else:
                 if sourceLang[:2] == 'en':
@@ -106,17 +94,25 @@ def ProcessFiles(sourceFile):
                         if mdRegex.fullmatch(piece):
                             if re.fullmatch(r'\]\(#.+\)', piece):
                                 anchor = Translate(' '.join(piece[3:-1].split('-')), langCombo)
+                                if anchor == None:
+                                    break
                                 targetContent += '](#' + '-'.join(anchor.split(' ')).lower() + ')'
                             else:
                                 targetContent += piece
                         else:
-                            localized = Translate(piece, langCombo)
+                            word = Translate(piece, langCombo)
+                            if word == None:
+                                break
+                            localized = word
                             if type(localized) is list:
                                 localized = localized[0]
                             targetContent += localized
-            file = codecs.open(targetPaths[i] + '/' + '/'.join(sourceFile.split('/')[1:]), encoding = 'utf-8', mode = 'w+')
-            file.write(targetContent)
-            file.close()
+            if word != None:
+                file = codecs.open(targetPaths[i] + '/' + '/'.join(sourceFile.split('/')[1:]), encoding = 'utf-8', mode = 'w+')
+                file.write(targetContent)
+                file.close()
+            else:
+                haltedTranslation.append(sourceFile)
         return
     PrLightPurple('Copying "' + sourceFile + '"')
     for i in range (len(targetLangs)):
@@ -148,14 +144,19 @@ def FileStats(sourceFile):
 def Translate(text, langCombo):
     if re.search(r'\w', text) is None: return [text for n in targetLangs]
     firstLetter = re.search(r'\w', text).group()
-    resp = requests.get(
-        urlTrad,
-        params = {
-            'key': apiTradKey,
-            'lang': langCombo,
-            'text': text
-            }
-    )
+    try:
+        resp = requests.get(
+            urlTrad,
+            params = {
+                'key': apiTradKey,
+                'lang': langCombo,
+                'text': text
+                },
+            timeout = 3
+        )
+    except requests.Timeout:
+        PrYellow('A request timed out!')
+        return None
     if resp.status_code != 200:
         PrRed('Request failed!')
         exit()
@@ -185,13 +186,23 @@ def PrLightPurple(skk):
 #--------------------------------
 
 def RepoCheck():
-    if sourceDir not in os.listdir():
-        PrRed('\nThe directory "' + sourceDir + '" for source files has not been found!')
-        exit()
-
+    global sourceDir
+    if sourceLang not in os.listdir():
+        if sourceLang + '_' not in list(map(lambda x: x[:3], os.listdir())):
+            PrRed('\nNo directory for source language files has been found!\nAdd or rename the directory with the ISO 639-1 code for its language')
+            re.purge
+            exit()
+        else:
+            if len(list(filter(lambda x: x == sourceLang + '_', map(lambda x: x[:3], os.listdir())))) > 1:
+                PrRed('\nThere are more than one directory named with source language code.\nPlease designate only one.')
+                re.purge
+                exit()
+            else:
+                sourceDir = list(filter(lambda x: x[:3] == sourceLang + '_', os.listdir()))[0]
+    else:
+        sourceDir = sourceLang
     for lang in targetLangs:
         targetPaths.append('_'.join(lang.split('-')).lower())
-
     try:
         repo = Repo()
     except:
@@ -209,7 +220,7 @@ def RepoCheck():
 
     allModified = modifiedStaged + modifiedUnstaged
     untrackedSrc = [n for n in repo.untracked_files if n.split('/')[0] == sourceDir]
-    return [n.a_blob.path for n in allModified if n.a_blob.path.split('/')[0] == '_'.join(sourceLang.split('-')).lower()] + untrackedSrc
+    return [n.a_blob.path for n in allModified if n.a_blob.path.split('/')[0] == sourceDir] + untrackedSrc
 
 #--------------------------------
 
@@ -219,7 +230,6 @@ def root():
     global apiTradKey
     global sourceLang
     global targetLangs
-    global sourceDir
     global configs
     init()
     try:
@@ -240,15 +250,14 @@ def root():
         }
         with open(os.path.expanduser('~') + '/' + 'tradocs.config.json', 'w+') as file:
             json.dump(configs, file)
-    sourceDir = '_'.join(sourceLang.split('-')).lower()
 
 @root.command()
 @click.option('-k', '--api-key', type=str)
 @click.option('-s', '--source', type=str)
 @click.option('-t', '--target', type=str)
 def config(api_key, source, target):
-    global configs
     """Show and set configuration"""
+    global configs
     if not (api_key or source or target):
         print(' Source language:\t' + configs['SOURCE'])
         print(' Target languages:\t' + ' '.join(configs['TARGET']))
@@ -274,7 +283,7 @@ def diff():
         for doc in workTree:
             if doc.split('/')[-1] in os.listdir(sourceDir + '/' + '/'.join(doc.split('/')[1:-1])):
                 stats.append(FileStats(doc))
-                PrLightPurple(doc)
+                print(' ' + doc)
             else:
                 PrYellow(doc + ' will be deleted in target languages.')
         fls = list(filter(lambda x: x is not None, stats))
@@ -297,10 +306,15 @@ def diff():
                             os.remove(path + '/' + '/'.join(doc.split('/')[1:]))
                         except:
                             pass
-            PrGreen('\n Completed successfully!')
+            if not len(haltedTranslation):
+                PrGreen('\n Completed successfully!')
+            else:
+                PrYellow("The following files could neither be processed nor copied to target language directories:")
+                for notTranslated in haltedTranslation:
+                    print(' ' + notTranslated)
     else:
         PrYellow('There have been no changes to the source language directory since the last commit.')
-    if cont != 'c': PrRed('\n Exiting...')
+    if cont != 'c' or len(haltedTranslation): PrRed('\n Exiting...')
     time.sleep(1)
     re.purge
     exit()
@@ -394,9 +408,13 @@ def all():
                 greenFlag = True
             else:
                 break
-    if greenFlag:
+    if greenFlag and not len(haltedTranslation):
         PrGreen('\n Completed successfully!')
     else:
+        if greenFlag:
+            PrYellow("The following files could neither be processed nor copied to target language directories:")
+            for notTranslated in haltedTranslation:
+                print(' ' + notTranslated)
         PrRed('\n Exiting...')
     time.sleep(1)
     re.purge()
